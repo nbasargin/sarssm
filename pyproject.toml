@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sarssm"
+version = "1.0.0"
+dependencies = [
+    "numpy",
+    "torch",
+    "scipy",
+    "matplotlib",
+]
+requires-python = ">=3.10"
+
+license = {text = "MIT"}
+description = "Selected algorithms for surface soil moisture (SSM) estimation from SAR data"
+authors = [
+    {name = "Nikita Basargin", email = "nikita.basargin@dlr.de"},
+]
+readme = "README.md"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+line-ending = "lf"
