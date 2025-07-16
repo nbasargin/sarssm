@@ -3,8 +3,11 @@
 Selected algorithms for surface soil moisture (SSM) estimation from SAR data.
 
 
-## Installation (editable mode)
+## Installation 
 
+`pip install sarssm`
+
+Alternatively, you can install the package in editable mode:
 - clone this repository
 - activate a virtual environment (e.g. conda)
 - install this package (in editable mode) with `pip install -e ./sarssm/`
