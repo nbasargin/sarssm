@@ -2,6 +2,7 @@
 from .decomposition.cloude1996 import h_a_alpha_decomposition
 from .conversion.topp1980 import eps_to_moisture_topp
 from .conversion.hallikainen1985 import moisture_to_eps_hallikainen
+from .conversion.mironov2009_temp import moisture_to_eps_mironov_temp
 from .conversion.ulaby1987 import corn_moisture_to_eps_ulaby
 from .polsar.hajnsek2003 import xbragg_model, coherency_matrix_to_xbragg_eps
 from .insar.dezan2014 import Dezan2014InSARMoistureModel, moisture_to_insar_coherence, moisture_to_insar_phase_triplet

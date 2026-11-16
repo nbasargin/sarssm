@@ -73,7 +73,12 @@ class Dezan2014InSARMoistureModel(nn.Module):
         """
         light_speed = 299792458  # m/s
         wavelength = light_speed / self.frequency
-        eps_r_soil = sarssm.moisture_to_eps_hallikainen(sm, sand=self.sand, clay=self.clay, frequency=self.frequency)
+        if 45_000_000 <= self.frequency < 1_000_000_000:
+            # use Mironov for P-band, since Hallikainen is not applicable
+            eps_r_soil = sarssm.moisture_to_eps_mironov_temp(sm, clay=self.clay, frequency=self.frequency)
+        else:
+            # use Hallikainen for other frequencies, like in the De Zan paper
+            eps_r_soil = sarssm.moisture_to_eps_hallikainen(sm, sand=self.sand, clay=self.clay, frequency=self.frequency)
         kz_soil = torch.pi * 2 / wavelength * torch.sqrt(eps_r_soil - torch.sin(self.incidence) ** 2)
         # there are two solutions for sqrt, kz_soil with a negative imaginary part is physically correct
         if not torch.all(torch.isnan(kz_soil) | (kz_soil.imag < 0)):
