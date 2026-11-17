@@ -9,11 +9,12 @@ DOI: 10.1109/TGRS.2013.2241069
 
 import torch
 from torch import nn
+
 import sarssm
 
 
 class Dezan2014InSARMoistureModel(nn.Module):
-    def __init__(self, initial_sm_dict: dict, incidence, sand, clay, frequency):
+    def __init__(self, initial_sm_dict: dict, incidence, sand, clay, frequency, sm2eps_alg="hallikainen1985"):
         """
         Forward interferometric model for soil moisture implemented in PyTorch.
         The model predicts the interferometric parameters (complex coherence and phase triplets) given the soil moisture.
@@ -26,6 +27,7 @@ class Dezan2014InSARMoistureModel(nn.Module):
             sand - soil sand content in percent (value from 0 to 100), torch tensor of shape (*B,) or a scalar
             clay - soil clay content in percent (value from 0 to 100), torch tensor of shape (*B,) or a scalar
             frequency - radar frequency in Hz, int or float
+            sm2eps_alg - which algorithm to use to convert soil moisture to dielectrics, "hallikainen1985" (default) or "mironov2009"
         """
         super().__init__()
         assert torch.is_tensor(incidence) and torch.is_tensor(sand) and torch.is_tensor(clay)
@@ -39,12 +41,13 @@ class Dezan2014InSARMoistureModel(nn.Module):
         self.incidence = incidence
         self.sand = sand
         self.clay = clay
+        self.sm2eps_alg = sm2eps_alg
 
     def sm_to_soil_kz(self, sm):
         """
         Convert soil moisture to the vertical wavenumber in the soil (kz_soil) according to the model.
         Internal inputs:
-            eps_r_soil - relative soil dielectrics, as predicted by Hallikainen model from the soil moisture
+            eps_r_soil - relative soil dielectrics, as predicted by Hallikainen/Mironov model from the soil moisture
                          complex-valued, the imaginary part must be negative
             wavelength - radar wavelength in m
             incidence - incidence angle in radians
@@ -73,14 +76,17 @@ class Dezan2014InSARMoistureModel(nn.Module):
         """
         light_speed = 299792458  # m/s
         wavelength = light_speed / self.frequency
-        if 45_000_000 <= self.frequency < 1_000_000_000:
-            # use Mironov for P-band, since Hallikainen is not applicable
-            eps_r_soil = sarssm.moisture_to_eps_mironov_temp(sm, clay=self.clay, frequency=self.frequency)
+        if self.sm2eps_alg == "mironov2009":
+            eps_r_soil = sarssm.moisture_to_eps_mironov(sm, clay=self.clay, frequency=self.frequency)
+        elif self.sm2eps_alg == "hallikainen1985":
+            eps_r_soil = sarssm.moisture_to_eps_hallikainen(
+                sm, sand=self.sand, clay=self.clay, frequency=self.frequency
+            )
         else:
-            # use Hallikainen for other frequencies, like in the De Zan paper
-            eps_r_soil = sarssm.moisture_to_eps_hallikainen(sm, sand=self.sand, clay=self.clay, frequency=self.frequency)
+            raise ValueError(f"Unsupported conversion algorithm: {self.sm2eps_alg}")
+
         kz_soil = torch.pi * 2 / wavelength * torch.sqrt(eps_r_soil - torch.sin(self.incidence) ** 2)
-        # there are two solutions for sqrt, kz_soil with a negative imaginary part is physically correct
+        # there are two solutions for sqrt, kz_soil with a negative imaginary part is physically correct, ignore NaN elements for the check
         if not torch.all(torch.isnan(kz_soil) | (kz_soil.imag < 0)):
             # imaginary part of kz_soil has the same sign as the imaginary part of eps_r_soil (which should be negative)
             raise ValueError("The imaginary part of kz_soil and eps_r_soil should be negative!")
@@ -127,7 +133,7 @@ class Dezan2014InSARMoistureModel(nn.Module):
         return coherence_dict, triplet_dict
 
 
-def moisture_to_insar_coherence(moisture_1, moisture_2, incidence, sand, clay, frequency):
+def moisture_to_insar_coherence(moisture_1, moisture_2, incidence, sand, clay, frequency, sm2eps_alg="hallikainen1985"):
     """
     Predict the expected complex interferometric coherence given two soil moisture values at different times.
     Numpy wrapper around the Dezan2014InSARMoistureModel. Use the model directly to compute coherence for
@@ -139,6 +145,7 @@ def moisture_to_insar_coherence(moisture_1, moisture_2, incidence, sand, clay, f
         sand: soil sand content in percent (value from 0 to 100), numpy array of shape (*B,) or a scalar
         clay: soil clay content in percent (value from 0 to 100), numpy array of shape (*B,) or a scalar
         frequency: radar frequency in Hz, int or float
+        sm2eps_alg: which algorithm to use to convert soil moisture to dielectrics, "hallikainen1985" (default) or "mironov2009"
     Returns:
         complex_coherence between two acquisitions predicted by the model, complex-valued numpy array of shape (*B,)
     """
@@ -150,14 +157,21 @@ def moisture_to_insar_coherence(moisture_1, moisture_2, incidence, sand, clay, f
     sand = torch.tensor(sand)
     clay = torch.tensor(clay)
     model = Dezan2014InSARMoistureModel(
-        initial_sm_dict=moisture_dict, incidence=incidence, sand=sand, clay=clay, frequency=frequency
+        initial_sm_dict=moisture_dict,
+        incidence=incidence,
+        sand=sand,
+        clay=clay,
+        frequency=frequency,
+        sm2eps_alg=sm2eps_alg,
     )
     coherence_dict, triplet_dict = model.forward()
     complex_coherence = coherence_dict[("moisture_1", "moisture_2")]
     return complex_coherence.cpu().detach().numpy()
 
 
-def moisture_to_insar_phase_triplet(moisture_1, moisture_2, moisture_3, incidence, sand, clay, frequency):
+def moisture_to_insar_phase_triplet(
+    moisture_1, moisture_2, moisture_3, incidence, sand, clay, frequency, sm2eps_alg="hallikainen1985"
+):
     """
     Predict the expected interferometric phase triplet given three soil moisture values at different times.
     Numpy wrapper around the Dezan2014InSARMoistureModel. Use the model directly to compute multiple coherences at once.
@@ -169,6 +183,7 @@ def moisture_to_insar_phase_triplet(moisture_1, moisture_2, moisture_3, incidenc
         sand: soil sand content in percent (value from 0 to 100), numpy array of shape (*B,) or a scalar
         clay: soil clay content in percent (value from 0 to 100), numpy array of shape (*B,) or a scalar
         frequency: radar frequency in Hz, int or float
+        sm2eps_alg: which algorithm to use to convert soil moisture to dielectrics, "hallikainen1985" (default) or "mironov2009"
     Returns:
         phase_triplet: phase in radians predicted by the model, real-valued numpy array of shape (*B,)
     """
@@ -181,7 +196,12 @@ def moisture_to_insar_phase_triplet(moisture_1, moisture_2, moisture_3, incidenc
     sand = torch.tensor(sand)
     clay = torch.tensor(clay)
     model = Dezan2014InSARMoistureModel(
-        initial_sm_dict=moisture_dict, incidence=incidence, sand=sand, clay=clay, frequency=frequency
+        initial_sm_dict=moisture_dict,
+        incidence=incidence,
+        sand=sand,
+        clay=clay,
+        frequency=frequency,
+        sm2eps_alg=sm2eps_alg,
     )
     coherence_dict, triplet_dict = model.forward()
     phase_triplet = triplet_dict[("moisture_1", "moisture_2", "moisture_3")]

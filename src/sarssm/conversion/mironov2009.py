@@ -1,10 +1,12 @@
 """
-Mironov et al. (2009) clay-based GRMDM in PyTorch (differentiable, broadcasting).
+Mironov et al. (2009) clay-based GRMDM.
+Conversion from the soil moisture to the complex-valued relative dielectric constant.
+The soil texture (clay content) and the microwave frequency are taken into account.
 
 Coefficients: Mironov, Kosolapova & Fomin (2009), IEEE TGRS 47(7):2059-2070,
-Using Eqs. (11)-(16) and (17)-(25) from the paper.
-The erratum (p. 2085) only concerns Eq. (9) (Dobson SMDM conductivity) and does not affect this model.
-Valid range of training data: 45 MHz - 26.5 GHz, 20-22 degC, clay 0-76 %.
+Valid range: 45 MHz - 26.5 GHz, 20-22 degC, clay 0-76 %.
+
+Implementation status: experimental
 """
 
 import math
@@ -24,17 +26,15 @@ def _debye_nk(f, eps0, tau, sigma):
     return torch.sqrt((mag + er) / 2), torch.sqrt((mag - er) / 2)
 
 
-def moisture_to_eps_mironov_temp(mv, clay, frequency):
+def moisture_to_eps_mironov(mv, clay, frequency):
     """
-    IMPLEMENTATION NOT CHECKED!
-
-    mv        : volumetric water content [m3/m3] (tensor, any shape)
-    clay      : clay fraction 0..1 (tensor or float, broadcastable to mv)
-    frequency : Hz (float or tensor, broadcastable)
+    mv        : volumetric water content [m3/m3] (value range 0 to 1), tensor, any shape
+    clay      : clay fraction, in percent (value range 0 to 100), tensor or float, broadcastable to mv
+    frequency : Hz, float or tensor, broadcastable
     returns   : complex tensor eps' - 1j*eps''
     """
     mv = torch.as_tensor(mv)
-    C = torch.as_tensor(clay, dtype=mv.dtype) * 100.0  # 2009 regressions use percent
+    C = torch.as_tensor(clay, dtype=mv.dtype)
     f = torch.as_tensor(frequency, dtype=mv.dtype)
 
     nd = 1.634 - 0.539e-2 * C + 0.2748e-4 * C**2

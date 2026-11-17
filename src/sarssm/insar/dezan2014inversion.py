@@ -9,6 +9,7 @@ DOI: 10.1109/TGRS.2013.2241069
 
 import numpy as np
 import torch
+
 import sarssm
 
 
@@ -62,7 +63,16 @@ def _abs_on_dict(torch_dict):
 
 
 def insar_parameters_to_moisture(
-    coherence_dict, triplet_dict, initial_sm_dict, known_sm_aquisition_id, incidence, sand, clay, frequency, iters=320
+    coherence_dict,
+    triplet_dict,
+    initial_sm_dict,
+    known_sm_aquisition_id,
+    incidence,
+    sand,
+    clay,
+    frequency,
+    iters=320,
+    sm2eps_alg="hallikainen1985",
 ):
     """
     Invert the De Zan soil moisture model and predict soil moisture from interferometric parameters (coherence and triplets).
@@ -84,6 +94,7 @@ def insar_parameters_to_moisture(
         clay - soil clay content in percent (value from 0 to 100), numpy array of shape (*B,) or a scalar
         frequency - radar frequency in Hz, int or float
         iters - number of model fitting iterations
+        sm2eps_alg - which algorithm to use to convert soil moisture to dielectrics, "hallikainen1985" (default) or "mironov2009"
     Returns:
         the fitted model
     """
@@ -96,7 +107,12 @@ def insar_parameters_to_moisture(
     clay = torch.tensor(clay, dtype=torch.float32)
     # construct model and fix the known moisture value
     model = sarssm.Dezan2014InSARMoistureModel(
-        initial_sm_dict=initial_sm_dict, incidence=incidence, sand=sand, clay=clay, frequency=frequency
+        initial_sm_dict=initial_sm_dict,
+        incidence=incidence,
+        sand=sand,
+        clay=clay,
+        frequency=frequency,
+        sm2eps_alg=sm2eps_alg,
     )
     model.predicted_sm_dict[known_sm_aquisition_id].requires_grad = False  # known moisture, will not be updated
 
