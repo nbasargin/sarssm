@@ -2,11 +2,12 @@
 Mironov et al. (2009) clay-based GRMDM.
 Conversion from the soil moisture to the complex-valued relative dielectric constant.
 The soil texture (clay content) and the microwave frequency are taken into account.
-
-Coefficients: Mironov, Kosolapova & Fomin (2009), IEEE TGRS 47(7):2059-2070,
 Valid range: 45 MHz - 26.5 GHz, 20-22 degC, clay 0-76 %.
 
-Implementation status: experimental
+V. L. Mironov, L. G. Kosolapova, S. V. Fomin
+Physically and Mineralogically Based Spectroscopic Dielectric Model for Moist Soils
+IEEE Transactions on Geoscience and Remote Sensing, 2009
+DOI: 10.1109/TGRS.2008.2011631
 """
 
 import math
